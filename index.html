@@ -496,6 +496,7 @@ main{flex:1}
  .link{font-size:11.5px}
  .mchip{font-size:11.5px;padding:4px 9px}
 }
+a.deliv{text-decoration:none}
 /* الشارات لو التفت لأكثر من سطر تظل مستطيل مدوّر، مو دائرة */
 .mchip{border-radius:14px}
 /* أضيق من الجوالات العادية (أقل من 360): البطاقة عمود واحد، والختم وزر التفاصيل تحت في سطر */
@@ -1060,8 +1061,15 @@ function datesBlock(a,b,c){ // a,b side by side; c (end) under them
 function miniDeliv(it){
  if(!it.output) return "";
  const ms=mediaOf(it),m=ms[0];
+ if(!m){ // احتياط: لو المخرج نص فيه رابط ما تعرّف عليه السكربت، يظل ينضغط
+  const u=(String(it.output).match(/(?:https?:\/\/|www\.)[^\s،,]+|(?:[a-z0-9-]+\.)+(?:com|net|org|io|dev|app|edu|sa|me|co|ai)(?:\/[^\s،,]*)?/i)||[])[0];
+  if(u){const href=/^https?:/i.test(u)?u:"https://"+u;return `<a class="deliv" href="${esc(href)}" target="_blank" rel="noopener"><span class="dico">${ICON.link2}</span><span class="dtxt"><small>المخرج · رابط</small><b>${esc(it.output)}</b></span><span class="dact">فتح الرابط${ICON.ext}</span></a>`}
+ }
  if(!m) return `<div class="deliv nolink"><span class="dico">${ICON.file}</span><span class="dtxt"><small>المخرج</small><b>${esc(it.output)}</b></span></div>`;
  const act={link:"فتح الرابط",image:"عرض",pdf:"فتح",file:"فتح"}[m.kind]||"عرض";
+ // الروابط والملفات: رابط حقيقي ينضغط مباشرة (أضمن في الجوال)
+ if((m.kind==="link"||m.kind==="file")&&m.url&&ms.length===1)
+  return `<a class="deliv" href="${esc(m.url)}" target="_blank" rel="noopener"><img class="dthumb" src="${mediaSrc(it,m,0)}" alt=""><span class="dtxt"><small>المخرج · ${mediaLabel(ms)}</small><b>${esc(it.output)}</b></span><span class="dact">${act}${ICON.ext}</span></a>`;
  return `<button class="deliv" data-media="${it.id}" data-i="0"><img class="dthumb" src="${mediaSrc(it,m,0)}" alt=""><span class="dtxt"><small>المخرج · ${mediaLabel(ms)}</small><b>${esc(it.output)}</b></span><span class="dact">${act}${ICON.ext}</span></button>`;
 }
 function summaryFor(it){
@@ -1399,12 +1407,14 @@ function modal(html,cls=""){
  document.addEventListener("keydown",k);sc.addEventListener("click",e=>{if(e.target===sc)close()});sc.querySelector(".close").onclick=close;
  return {sc,close};
 }
+/* فتح رابط في صفحة جديدة: نضغط رابط حقيقي بدل window.open، لأن متصفحات الجوال (Safari والمتصفحات الداخلية في واتساب وغيرها) تتجاهل window.open */
+function openUrl(u){const a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
 function openMedia(id,i){
  const it=USERS[S.uid].items.find(x=>x.id===id);if(!it)return;
  const ms=mediaOf(it),m=ms[i]||ms[0];if(!m)return;
- if(m.kind==="file"){window.open(m.url,"_blank","noopener");return}
+ if(m.kind==="file"){openUrl(m.url);return}
  if(m.kind==="link"){
-  if(m.url){window.open(m.url,"_blank","noopener");return}
+  if(m.url){openUrl(m.url);return}
   const md=modal(`<div class="vhead"><h3>${esc(it.title)}</h3><span class="mchip">${KIND_ICON.link}${esc(m.domain)}</span></div><div class="vstage link"><img src="${mediaSrc(it,m,0)}" alt=""></div><div class="vbar"><span class="vnote">معاينة تجريبية، وفي النسخة الحقيقية يفتح الرابط الفعلي</span><button class="btn small" id="vgo">فتح الرابط ${ICON.ext}</button></div>`,"viewer");
   md.sc.querySelector("#vgo").onclick=()=>toast("مثال تجريبي: في النسخة الحقيقية يفتح الرابط الفعلي");return;
  }
@@ -1422,14 +1432,14 @@ function openMedia(id,i){
  show(cur);
  const pv=sc.querySelector(".vprev"),nx=sc.querySelector(".vnext");if(pv)pv.onclick=()=>show(cur-1);if(nx)nx.onclick=()=>show(cur+1);
  sc.querySelectorAll(".vthumbs button").forEach(b=>b.onclick=()=>show(+b.dataset.k));
- const idl=sc.querySelector("#vimgdl");if(idl)idl.onclick=()=>{const s2=src(cur);if(/^data:/.test(s2))saveImage(s2,(imgs[cur]&&imgs[cur].style==="cert"?"certificate-":"work-")+it.id+"-"+(cur+1)+".jpg");else window.open(s2,"_blank","noopener")};
+ const idl=sc.querySelector("#vimgdl");if(idl)idl.onclick=()=>{const s2=src(cur);if(/^data:/.test(s2))saveImage(s2,(imgs[cur]&&imgs[cur].style==="cert"?"certificate-":"work-")+it.id+"-"+(cur+1)+".jpg");else openUrl(s2)};
  const dl=sc.querySelector("#vdl");if(dl)dl.onclick=()=>toast("مثال تجريبي: في النسخة الحقيقية يتحمّل الملف الفعلي");
  const key=e=>{if(!document.body.contains(sc)){document.removeEventListener("keydown",key);return}if(e.key==="ArrowLeft")show(cur+1);if(e.key==="ArrowRight")show(cur-1)};document.addEventListener("keydown",key);
  let x0=null;const st=sc.querySelector(".vstage");st.addEventListener("touchstart",e=>{x0=e.touches[0].clientX},{passive:true});st.addEventListener("touchend",e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>40)show(dx>0?cur+1:cur-1);x0=null});
 }
 function openOutput(id,kind){
  const it=USERS[S.uid].items.find(i=>i.id===id); if(!it) return;
- if(it.outUrl){ if(kind==="image"){modal(`<img class="lb" src="${esc(it.outUrl)}" alt=""><p>${esc(it.output)}</p>`,"wide")} else window.open(it.outUrl,"_blank","noopener"); return; }
+ if(it.outUrl){ if(kind==="image"){modal(`<img class="lb" src="${esc(it.outUrl)}" alt=""><p>${esc(it.output)}</p>`,"wide")} else openUrl(it.outUrl); return; }
  if(kind==="image"){modal(`<img class="lb" src="${A.banner}" alt=""><p>${esc(it.output)} · صورة تجريبية</p>`,"wide");return}
  toast(`مثال تجريبي: في النسخة الحقيقية يفتح ${kind==="link"?"الرابط":"الملف"} الفعلي`);
 }
